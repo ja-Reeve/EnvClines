@@ -16,7 +16,7 @@
 ### I recomend running this script on a server.
 
 ### James Reeve - University of Gothenburg
-### 2023-06-02
+### 2024-01-25
 
 
 #### 0. Preparation ####
@@ -26,7 +26,6 @@ options(stringsAsFactors = FALSE)
 ### Packages
 library(tidyverse) # Computing resources
 library(glmulti)   # GLM permutations
-library(ggpubr)    # Multi-panel plots
 
 
 #### 1. Parameters ####
@@ -49,46 +48,62 @@ CZ <- "ANG"
 # Possible values: "ANG", "CZA_L", "CZA_R", "CZB_L", "CZB_R", "CZD_L", or "CZD_R"
 site.prefix <- substr(CZ, 1, 3)
 
-### Position where a site it split.
+### Position of site split.
 # CZA, CZB and CZD are three separate bays which were split in the middle into
 # two hybrid zones per site. See Fig. 1 in the manuscript for images of the bays.
-site.split <- 0
-# Values for each site: ANG = 0
-#                       CZA = XXX
-#                       CZB = YYY
-#                       CZD = ZZZ
+if(site.prefix == "ANG") site.split <- 0
+if(site.prefix == "CZA") site.split <- 206.7
+if(site.prefix == "CZB") site.split <- 110.3
+if(site.prefix == "CZD") site.split <- 133.325
 
 
 #### 2. Data handeling ####
 
-### A: Environmental variables
-# Access data for all bays
-env_var <- read.csv(paste0(PATH, "all_islands_habitat_20190530.csv"), header = TRUE)
-# Remove unnessecary columns
-env_var <- env_var[,-c(1:2, 4:5, 7, 10:11, 15:16)]
-
-# Subset data to focal site
-env_var <- env_var[grepl(site.prefix, substr(env_var$snail_ID, 1, 3)),]
+### A: Cline fit parameters
+params <- read.table(paste0(PATH, "cline_fit_parameters/", site.prefix, "_inv_clines_free_201907",
+                            ifelse(grepl("A", CZ), "16", "17"),
+                            ".txt"), header = T)
+params <- params[params$Inv == INV,]
 if(grepl("L", CZ)){
-  env_var <- env_var[env_var$LCmeanDist < site.split,] # Left of bay
-  env_var$LCmeanDist <- abs(env_var$LCmeanDist - site.split)
+  params <- params[params$Side == "left",]
+  } else {
+  params <- params[params$Side == "right",]}
+
+### B: Environmental variables
+# Access data for all islands
+env_var <- read.csv(paste0(PATH, "environment/all_islands_habitat_20240216.csv"))
+# Remove unnecessary columns
+env_var <- env_var[,c("snail_ID", "height", "LCmeanDist", "SN_rock", "topo", "low_barnacle", "low_fucus")]#-c(1:2, 4:5, 7, 10:11, 15:16)]
+
+# Subset to bay
+env_var <- env_var[grepl(site.prefix, substr(env_var$snail_ID, 1, 3)),]
+
+# Subset to site
+if(grepl("_L", CZ)){
+  env_var <- env_var[env_var$LCmeanDist < site.split,] # Left of bay 
 } else {
   env_var <- env_var[env_var$LCmeanDist >= site.split,] # Right of bay
-  env_var$LCmeanDist <- env_var$LCmeanDist - site.split}
+}
 
-# Standardize variables
+# Subtract distances from the centre of the boulder field at each bay
+env_var$LCmeanDist <- abs(env_var$LCmeanDist - site.split)
+
+# Standardize environmental variables
 stnd.var <- function(x){(x-mean(x))/sd(x)}
 vars <- c("SN_rock", "low_barnacle", "low_fucus", "topo", "height")
 env_var[,vars] <- apply(env_var[,vars], 2, stnd.var)
 
 
-### B: Inversion count per snail
+### C: Inversion count per snail
 inv_count <- read.csv(paste0(PATH, site.prefix, "_15july3.csv"),header = T)
 # Remove unnessecary columns
 inv_count <- inv_count[, c("snail_ID", INV)]
 
+# Switch to alternative allele if it was more common in Wave habitat
+if(params$Allele == 0) inv_count[,INV] <- 2 - inv_count[,INV]
 
-### C: Merge inversion counts and envrionmental variables
+
+### D: Merge inversion counts and envrionmental variables
 dat <- inner_join(inv_count, env_var, by = "snail_ID")
 
 # Rename columns: this prevents an annoying bug in glmulti that looses barnacle*fucus interactions
@@ -97,51 +112,40 @@ colnames(dat) <- c(colnames(dat)[1], "Ninv", colnames(dat)[3:4], "rock", "topo",
 
 #### 3. Cline model estimates ####
 
-### Snail positions along hybrid zone
-dists <- dat$LCmeanDist
+### Cline positions from environmental data
+lcd <- dat$LCmeanDist
 
-### Get cline fit parameter estimates (from Westram et. al 2021)
-params <- read.table(paste0(PATH, site.prefix, "_inv_clines_free_201907",
-                            ifelse(grepl("A", CZ), "16", "17"),
-                            ".txt"), header = T)
-params <- params[params$Inv == INV,]
-if(grepl("L", CZ)){params <- params[params$Side == "left",]} else {params <- params[params$Side == "right",]}
+### Extract parameters required for the model
+cnt <- params$Centre # Cline centre
+cw <- params$logWidth # Cline width
+fc <- params$lp_crab # Allele frequency Crab edge
+fw <- params$lp_wave # Allele frequency Wave edge
 
-### Extrat parameters required for the model
-# Cline centre
-cnt <- params$Centre
-# Cline width
-cw <- params$logWidth
-# Allele frequency crab end
-fc <- params$lp_crab
-fc <- exp(fc)/(1+exp(fc)) # Back-transform from logit
-# Allele frequency wave end
-fw <- params$lp_wave
+### Back-transform parameters in logit and log scale
+# Log
+cw <- exp(cw)
+# Logit
+fc <- exp(fc)/(1+exp(fc))
 fw <- exp(fw)/(1+exp(fw))
-# Least cost distances
-lcd <- dists
 
 ### Cline fit function
-cf <- fc+(fw-fc)*(1/(1+exp(-4*((lcd-cnt)/exp(cw)))))
-# Reverse the fit values if the '2' alleles was determined to be an inversion
-cf <- if(params$Allele == 2) cf else 1-cf
-# Standardise cline fit
-cf <- (cf - mean(cf)) / sd(cf)
+cf <- fc+(fw-fc)*(1/(1+exp(-4*((lcd-cnt)/cw))))
+
+### Add cline fit estimates to data
+dat$cline <- cf
 
 
 #### 4. m0: Fitting cline model ####
 
-### Add cline model estimates to data
-dat$cline <- cf
-
 ### Run GLM on cline fit
-# GLM function - some inversions are missing cline fit parameters. The if satement
-# will replace these with a flat null model (y ~ 1).
+# GLM function - some inversions are missing cline fit parameters. The if()
+# statement sets a flat model for missing parameters.
 if(sum(is.na(dat$cline)) == nrow(dat)){
   f <- formula(cbind(Ninv, 2-Ninv)~1)
 } else {
   f <- formula(cbind(Ninv, 2-Ninv)~cline)
 }
+
 # Run the GLM
 fit <- glm(f, family = binomial(link = "logit"), data = dat)
 
@@ -155,63 +159,77 @@ m0.AIC <- data.frame("Inv" = INV,
                          "No-cline"
                        })
 
-write.csv(m0.AIC, paste0(OUT, "AICs/", CZ, "_", INV, "_AIC_m0.csv"), row.names = FALSE, quote = c(4))
+write.csv(m0.AIC, paste0(OUT, "AICs/", CZ, "_", INV, "_AIC_m0.v4.csv"), row.names = FALSE, quote = c(4))
 
 
 #### 5. m1: Environmental + Cline fit model ####
 
-### Set up custom function for glmulti
+### A: Set up custom function for glmulti
 # Note: due to a problem with the way functions are nested in R, I have to have
 # call this function outside the wrapper function for the env+cline model.
-myglm <- function(y, data) {
-  if(missing(data)) data <- envrionment(y)
+myglm <- function(f, data) {
+  if(missing(data)) data <- envrionment(f)
 
-  # Null model if fit contains cline interactions
+  # Null model
   nullos <- glm(cbind(Ninv, 2-Ninv)~1,
                 family = binomial(link = "logit"), data = data)
 
   # Get a list of all possible terms in the model
-  termz = terms(y,data=data)
+  termz = terms(f,data=data)
   # Order of all terms
   orderz = attr(termz,"order")
-  # All pairwise interactions, if any. Otherwise the formula is okay
-  intz = which(orderz==2)
-  # Locate the row corresponding to the undesired variable
+  # All 1st level factors
+  sfact <- which(orderz == 1)
+  # All 2nd level pairwise interactions
+  intz = which(orderz == 2)
+
+  # Locate the rows which corresponding to 'cline'
   index=which(dimnames(attr(termz,"factors"))[[1]] == "cline")
-  # we simply test that all interactions exclude the effect
-  # otherwise we return the crappy null model
+
+
+  # Check that any model terms are present
   if(length(orderz > 1)){
-    if(sum(attr(termz,"factors")[index,intz])!=0) return(nullos)
+
+    # If 'cline' is not in the model return Null model
+    if(sum(attr(termz,"factors")[index,sfact]) != 1) return(nullos)
+    # If 'cline' is in any interaction, return Null model
+    if(sum(attr(termz,"factors")[index,intz]) != 0) return(nullos)
+
   } else return(nullos)
-  # if all is good we just call glm as usual
-  return(glm(formula=y, family = binomial(link = "logit"), data = data))
+
+  # If 'cline' is present and not in any interactions, return a glm
+  return(glm(formula=f, family = binomial(link = "logit"), data = data))
 }
 
-### Run GLM
+
+### B: Run GLM
 # Function for full model including cline fit
 f <- formula(cbind(Ninv, 2-Ninv)~height*rock*barn*fucus*topo*cline)
 # Run the glm with the modified fit function
-fits <- do.call("glmulti", list(y = f, data = dat, fitfunc = myglm))
+fits <- do.call("glmulti", list(f, data = dat, fitfunc = myglm))
 
-# Save plots of fit behavior
-pdf(file = paste0(OUT, "fit_plots/", CZ, "_", INV, "_m1fit.png"))
-par(mfrow = c(3,  1))
-plot(fits, type = "s")
-plot(fits, type = "p")
-plot(fits, type = "w")
+
+### C: Save plots of fit behavior
+tiff(file = paste0(OUT, "fit_plots/", CZ, "_", INV, "_m1fit.tiff"))
+  par(mfrow = c(3,  1))
+  plot(fits, type = "s")
+  plot(fits, type = "p")
+  plot(fits, type = "w")
 dev.off()
 
-# Save AIC of all models
+
+### D: Save AIC of all models
 m1.AIC <- data.frame("Inv" = rep(INV, length(fits@formulas)),
-                      "Site" = rep(CZ, length(fits@formulas)),
-                      "rank" = 1:length(fits@formulas),
-                      "aic" = sapply(fits@objects, function(X){X$aic}),
-                      "dev" = sapply(fits@objects, function(X){X$deviance}),
-                      "model" = paste("Pinv", sapply(fits@formulas, function(X){X[[3]]}), sep = " ~ "))
+                     "Site" = rep(CZ, length(fits@formulas)),
+                     "rank" = 1:length(fits@formulas),
+                     "aic" = sapply(fits@objects, function(X){X$aic}),
+                     "dev" = sapply(fits@objects, function(X){X$deviance}),
+                     "model" = paste("Pinv", sapply(fits@formulas, function(X){X[[3]]}), sep = " ~ "))
 
 write.csv(m1.AIC, paste0(OUT, "AICs/", CZ, "_", INV, "_AIC_m1.csv"), row.names = FALSE, quote = c(4))
 
-### Aggregate model
+
+### E: Aggregate model
 # Estimates from all "top" 2000 models
 m1.agg.fit <- coef.glmulti(fits)
 m1.agg.fit <- as.data.frame(m1.agg.fit)
