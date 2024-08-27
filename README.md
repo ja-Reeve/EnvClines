@@ -1,0 +1,1 @@
+R scripts used for a project which augmented cline models of _Littorina saxatilis_ hybrid zones using envrionmental varaibles. 'cline_fit_with_glmulti.R' and 'Fis_along_hybrid_zone.R' were used to analyse the data. Other scripts make plots of the raw data and results. This project has been submitted for peer-review in the Journal of Evolutionary Biology.
