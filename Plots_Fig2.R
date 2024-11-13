@@ -156,7 +156,7 @@ AIC.dat <- AIC.dat %>% group_by(Site, Inv) %>% mutate("Good_Fit" = min(dAIC) < -
 
 
 ### C: Viloin plots of ∆AIC
-Fig3B <- ggplot(AIC.dat, aes(y = Site, x = dAIC))+
+Fig2B <- ggplot(AIC.dat, aes(y = Site, x = dAIC))+
   geom_rect(aes(xmin = -10, xmax = 0, ymin = "ANG", ymax = "CZD_R"), 
             fill = "grey95", lty = 2)+
   geom_vline(xintercept = 0, col = "grey25")+
