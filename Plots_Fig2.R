@@ -177,4 +177,4 @@ Fig2B <- ggplot(AIC.dat, aes(y = Site, x = dAIC))+
 
 # Save panel
 ggsave("path/to/Plots/Fig2B.tiff", 
-       Fig3B, device = "tiff", dpi = 300, width = 53.34, height = 14, units = "cm")
+       Fig2B, device = "tiff", dpi = 300, width = 53.34, height = 14, units = "cm")
