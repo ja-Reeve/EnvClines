@@ -1,7 +1,10 @@
-############################# Plot fitted values ############################
-### Plotting the fitted models for each inversion and hybrid zone. Three data
-### sets are plotted on the same axes, observed inversion frequencies, fitted
-### values from a cline+envrionment model, and cline fit estimates.
+################################################ Plot fitted values ###########################################
+### Plotting the fitted models for each inversion and hybrid zone. Three data sets are plotted on the same 
+### axes, i) observed inversion frequencies, ii) fitted values from a cline+envrionment model, and iii) cline
+### predictions. Additionally each plot has a lower subpanel displaying the observed and expected heterozygosity
+### across the hybrid zone. Both observed and fitted values were averaged in 5m windows to make visualising fits 
+### easier (indiviual observed values could only be 0, 0.5 or 1). These plots were used in Figure 1C and for 
+### Supplementary figures S4-S10.
  
 ### James Reeve - University of Gothenburg
 ### 2024-01-18
@@ -20,9 +23,8 @@ PATH1 <- "path/to/cline/fit/parameters"
 PATH2 <-  "path/to/GLM_fitted_values"
 
 ### Create list of inversion names
-inversions <- c("LGC1.1", "LGC1.2", "LGC2.1", "LGC4.1", "LGC6.1", "LGC7.1", 
-                "LGC7.2", "LGC9.1", "LGC10.1", "LGC10.2", "LGC11.1", "LGC14.1",
-                "LGC14.3", "LGC17.1")
+inversions <- c("LGC1.1", "LGC1.2", "LGC2.1", "LGC4.1", "LGC6.1", "LGC7.1", "LGC7.2", "LGC9.1", 
+                "LGC10.1", "LGC10.2", "LGC11.1", "LGC14.1", "LGC14.3", "LGC17.1")
 
 
 
@@ -37,14 +39,11 @@ CZ_fit_vals <- function(inversion, site){
   if(site.prefix == "CZD") hzb <- 133.325
   
   ### A: cline fit paramters
-  params <- read.table(paste0(PATH1, site.prefix, "_inv_clines_free_201907", 
-                              ifelse(grepl("A", site), "16", "17"),
-                              ".txt"), header = T)
+  params <- read.table(paste0(PATH1, site.prefix, "_inv_clines_free_201907", ifelse(grepl("A", site), "16", "17"), ".txt"), header = T)
   # Subset to inversion
   params <- params[params$Inv == inversion,]
   # Subset to site
-  if(grepl("_L", site)){params <- params[params$Side == "left",] } else {
-    params <- params[params$Side == "right",]}
+  if(grepl("_L", site)){params <- params[params$Side == "left",] } else { params <- params[params$Side == "right",] }
   
   # Transform the cline width and edge frequency estimates
   params$w <- exp(params$logWidth)
@@ -55,8 +54,7 @@ CZ_fit_vals <- function(inversion, site){
   ### B: Envrionmental varaibles
   # Access data for all islands
   env_var <- read.csv(paste0(PATH1, "all_islands_habitat_20240216.csv"), header = TRUE)
-  env_var <- env_var[,c("snail_ID", "LCmeanDist",
-                        "height", "SN_rock", "low_barnacle", "low_fucus", "topo")]
+  env_var <- env_var[,c("snail_ID", "LCmeanDist", "height", "SN_rock", "low_barnacle", "low_fucus", "topo")]
   
   # Subset to bay by looking at first 3 characters from the site name
   env_var <- env_var[grepl(site.prefix, substr(env_var$snail_ID, 1, 3)),]
@@ -96,10 +94,8 @@ CZ_fit_vals <- function(inversion, site){
   
   # Shortern column names: this prevents an annoying bug in glmulti due to long
   # filenames being ignored as interaction terms.
-  dat <- dat[, c("snail_ID", inversion, "LCmeanDist",
-                 "height", "SN_rock", "low_barnacle", "low_fucus", "topo")]
-  colnames(dat) <- c(colnames(dat)[1], "Ninv", "LCmeanDist",
-                     "height", "rock", "barn", "fucus", "topo")
+  dat <- dat[, c("snail_ID", inversion, "LCmeanDist", "height", "SN_rock", "low_barnacle", "low_fucus", "topo")]
+  colnames(dat) <- c(colnames(dat)[1], "Ninv", "LCmeanDist", "height", "rock", "barn", "fucus", "topo")
   
   
   ### E: Cline fit
@@ -116,11 +112,10 @@ CZ_fit_vals <- function(inversion, site){
   dat$cf <- cf
   
   
-  ### F: Estimate fitted values from aggregate model
+  ### F: Estimate fitted values from aggregate cline+environment model
   
   # Aggregate model
-  agg.fit <- read.csv(paste0(PATH2, "aggregate_fits/glmuti_multimodel_inference_", 
-                             site, "_", inversion, "_m2.v4.csv"))
+  agg.fit <- read.csv(paste0(PATH2, "aggregate_fits/glmuti_multimodel_inference_", site, "_", inversion, "_m2.v4.csv"))
   # Order by estimate
   agg.fit <- agg.fit[order(agg.fit$X),]
   
@@ -210,8 +205,7 @@ CZ_fit_plot <- function(inversion, site, window.size){
     ###A: Get cline centre and width from parameter
     params <- read.table(paste0(PATH1, substr(site, 1, 3), "_inv_clines_free_201907", 
                                 ifelse(grepl("A", site), "16", "17"), ".txt"), header = T)
-    params <- params[params$Inv == inversion & 
-                       params$Side == ifelse(grepl("_L", site), "left", "right"),]
+    params <- params[params$Inv == inversion & params$Side == ifelse(grepl("_L", site), "left", "right"),]
     # Cline centre
     cnt <- params$Centre 
     # Cline width
@@ -225,14 +219,12 @@ CZ_fit_plot <- function(inversion, site, window.size){
     
     ### D: Fitted values plot
     p1 <- ggplot()+ 
-      geom_rect(aes(xmin = cnt - cw/2, xmax = cnt + cw/2, ymin = 0, ymax = 1), 
-                fill = "grey95")+
+      geom_rect(aes(xmin = cnt - cw/2, xmax = cnt + cw/2, ymin = 0, ymax = 1), fill = "grey95")+
       geom_vline(xintercept = cnt, lty = 2, col = "grey50")+
       geom_line(data = dat, aes(x = LCmeanDist, y = cf), col = "blue")+
       geom_point(data = dat2, aes(x = avgPos, y = avgObs), col = "black")+
       geom_point(data = dat2, aes(x = avgPos, y = avgFits), pch = 5)+
-      labs(y = "p",
-           title = paste0(site, ": ", inversion, " - ", window.size, "m windows"))+
+      labs(y = "p", title = paste0(site, ": ", inversion, " - ", window.size, "m windows"))+
       coord_cartesian(xlim = c(0, max(dat$LCmeanDist)), ylim = c(0, 1))+
       theme_bw()+
       theme(axis.title.x = element_blank(),
@@ -240,8 +232,7 @@ CZ_fit_plot <- function(inversion, site, window.size){
     
     ### E: Heterozygosity plot
     p2 <- ggplot(dat2, aes(x = avgPos))+
-      geom_rect(aes(xmin = cnt - cw/2, xmax = cnt + cw/2, ymin = 0, ymax = 1),
-                fill = "grey95")+
+      geom_rect(aes(xmin = cnt - cw/2, xmax = cnt + cw/2, ymin = 0, ymax = 1), fill = "grey95")+
       geom_vline(xintercept = cnt, lty = 2, col = "grey50")+
       geom_point(aes(y = Hexp), colour = "navy", pch = 5)+
       geom_point(aes(y = Hobs), colour = "blue")+
@@ -258,33 +249,25 @@ CZ_fit_plot <- function(inversion, site, window.size){
 
 #### 4: Investigate plots ####
 
+### Note: this is a sanity check to make sure the results make sense. Skip this step if you're confident the script works.
+
 # Plot different window sizes for ANG:LGC6.1/2
-ggarrange(
-  plotlist = lapply(1:12, CZ_fit_plot, 
-                    inversion = "LGC6.1", site = "ANG"),
-  nrow = 3, ncol = 4)
+ggarrange(plotlist = lapply(1:12, CZ_fit_plot, inversion = "LGC6.1", site = "ANG"), nrow = 3, ncol = 4)
 
 # Plot ANG
-ggarrange(plotlist = lapply(inversions, CZ_fit_plot, site = "ANG", window.size = 5),
-  nrow = 3, ncol = 5)
+ggarrange(plotlist = lapply(inversions, CZ_fit_plot, site = "ANG", window.size = 5), nrow = 3, ncol = 5)
 # Plot CZA_L
-ggarrange(plotlist = lapply(inversions, CZ_fit_plot, site = "CZA_L", window.size = 5),
-          nrow = 3, ncol = 5)
+ggarrange(plotlist = lapply(inversions, CZ_fit_plot, site = "CZA_L", window.size = 5), nrow = 3, ncol = 5)
 # Plot CZA_R
-ggarrange(plotlist = lapply(inversions, CZ_fit_plot, site = "CZA_R", window.size = 5),
-          nrow = 3, ncol = 5)
+ggarrange(plotlist = lapply(inversions, CZ_fit_plot, site = "CZA_R", window.size = 5), nrow = 3, ncol = 5)
 # Plot CZB_L
-ggarrange(plotlist = lapply(inversions, CZ_fit_plot, site = "CZB_L", window.size = 5),
-          nrow = 3, ncol = 5)
+ggarrange(plotlist = lapply(inversions, CZ_fit_plot, site = "CZB_L", window.size = 5), nrow = 3, ncol = 5)
 # Plot CZB_R
-ggarrange(plotlist = lapply(inversions, CZ_fit_plot, site = "CZB_R", window.size = 5),
-          nrow = 3, ncol = 5)
+ggarrange(plotlist = lapply(inversions, CZ_fit_plot, site = "CZB_R", window.size = 5), nrow = 3, ncol = 5)
 # Plot CZD_L
-ggarrange(plotlist = lapply(inversions, CZ_fit_plot, site = "CZD_L", window.size = 5),
-          nrow = 3, ncol = 5)
+ggarrange(plotlist = lapply(inversions, CZ_fit_plot, site = "CZD_L", window.size = 5), nrow = 3, ncol = 5)
 # Plot CZD_R
-ggarrange(plotlist = lapply(inversions, CZ_fit_plot, site = "CZD_R", window.size = 5),
-          nrow = 3, ncol = 5)
+ggarrange(plotlist = lapply(inversions, CZ_fit_plot, site = "CZD_R", window.size = 5), nrow = 3, ncol = 5)
 
 
 
@@ -297,7 +280,7 @@ lapply(c("ANG", "CZA_L", "CZA_R", "CZB_L", "CZB_R", "CZD_L", "CZD_R"),
                      p <- CZ_fit_plot(INV, SITE, 5)
                      
                      # Save plot
-                     ggsave(paste0(PATH2, "Fitted_values_m2_", SITE, "_", INV, "_5m_windows.tiff"), 
+                     ggsave(paste0(PATH2, "Fitted_values_", SITE, "_", INV, "_5m_windows.tiff"), 
                             p, device = "tiff", dpi = 300, width = 17.78, height = 16, units = "cm")
                      })
                    
