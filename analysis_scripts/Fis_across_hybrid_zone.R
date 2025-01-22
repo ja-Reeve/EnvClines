@@ -1,4 +1,4 @@
-######################## Calculate Fis along hybrid zones ###########################
+######################## Calculate Fis across hybrid zones ###########################
 ### This script calcuates Fis across each hybrid zones and at the cline edges to 
 ### idenfity if inversion frequencies are departing from expectations, either due to 
 ### adaptation to microhabitats withing the cline, or balancing selection.
