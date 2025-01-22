@@ -1,5 +1,7 @@
-################# GLM model fit plots: Figure 2 #################
-### The following code generates Figure 2 in the manuscript.
+################################# Figure 2: Summary plots of cline+environment models ##############################
+### This script generates three subplots which summarise the cline+envrionment models across all inversion and hybrid
+### zones. These are A) significant/important terms, B) AIC difference with the simple cline models, and C) varaince 
+### explained by the cline and local envrionment. These subplots were combined into Figure 2 using Inkscape.
 
 ### James Reeve - University of Gothenburg
 ### 2023-04-02
@@ -15,16 +17,15 @@ library(ggpubr)  # Multi-panel plots
 
 ### Set file path to data
 PATH1 <- "path/to/inversion/data"
-PATH2 <-  "path/to/model/fits"
+PATH2 <-  "path/to/cline/data"
 
 ### Create list of inversion names
-inversions <- c("LGC1.1", "LGC1.2", "LGC2.1", "LGC4.1", "LGC6.1", "LGC7.1", 
-                "LGC7.2", "LGC9.1", "LGC10.1", "LGC10.2", "LGC11.1", "LGC14.1",
-                "LGC14.3", "LGC17.1")
+inversions <- c("LGC1.1", "LGC1.2", "LGC2.1", "LGC4.1", "LGC6.1", "LGC7.1", "LGC7.2", "LGC9.1", 
+                "LGC10.1", "LGC10.2", "LGC11.1", "LGC14.1", "LGC14.3", "LGC17.1")
 
 
 
-#### 1: Fig. 2A ####
+#### 1: Fig. 2A: significant terms ####
 
 ### A: Access aggregate model fits
 # Access function
@@ -56,8 +57,7 @@ CZD_R.fits <- CZ.access("CZD_R", inversions, "m2")
 
 
 ### B: Merge into one data frame
-multifit <- do.call(rbind.data.frame, c(ANG.fits, CZA_L.fits, CZA_R.fits, 
-                                        CZB_L.fits, CZB_R.fits, CZD_L.fits, CZD_R.fits))
+multifit <- do.call(rbind.data.frame, c(ANG.fits, CZA_L.fits, CZA_R.fits, CZB_L.fits, CZB_R.fits, CZD_L.fits, CZD_R.fits))
 names(multifit) <- c("Env.Var", "Estimate", "sd", "z.value", "p.value", "Importance", "Inv", "site", "model")
 multifit$Significant <- multifit$p.value < 0.05
 
@@ -74,8 +74,7 @@ multifit$Env.Var <- factor(multifit$Env.Var,
 
 
 ### D: Remove inversions which are part of larger complexes on LG6 & LG14
-inversions2 <- inversions[!(inversions %in% c("LGC6.2a", "LGC6.2b", "LGC6.2c",
-                                              "LGC14.2a",  "LGC14.2b",  "LGC14.2c"))]
+inversions2 <- inversions[!(inversions %in% c("LGC6.2a", "LGC6.2b", "LGC6.2c", "LGC14.2a",  "LGC14.2b",  "LGC14.2c"))]
 
 
 ### E: Tile plot of factor significance and importance
@@ -97,14 +96,11 @@ Fig2A <- annotate_figure(Fig2A,
                 left = text_grob("Environmental Factor", face = "bold", size = 24, rot = 90))
 
 # Save panel
-ggsave("path/to/Plots/Fig2A.tiff", 
-       Fig2A, device = "tiff", dpi = 300, width = 53.34, height = 21, units = "cm")
+ggsave("path/to/Plots/Fig2A.tiff", Fig2A, device = "tiff", dpi = 300, width = 53.34, height = 21, units = "cm")
 
 
 
-#### Fig. 2B ####
-### Upload AIC of top 100 models
-### Note: try only best AIC vs AIC_cline & vs AIC_fix (i.e. AIC assuming centre is at habitat transition!)
+#### Fig. 2B: AIC comparisons ####
 
 ### A: Function to access AIC scores
 AIC.access <- function(site, inversion.list, model){
@@ -148,8 +144,7 @@ AIC.dat <- lapply(c("ANG", "CZA_L", "CZA_R", "CZB_L", "CZB_R", "CZD_L", "CZD_R")
 AIC.dat <- do.call(rbind.data.frame, AIC.dat)
 
 # Remove sub inversions in complexes on LG6 & LG14
-AIC.dat <- AIC.dat[!(AIC.dat$Inv %in% c("LGC6.2a", "LGC6.2b", "LGC6.2c",
-                                        "LGC14.2a",  "LGC14.2b",  "LGC14.2c")),]
+AIC.dat <- AIC.dat[!(AIC.dat$Inv %in% c("LGC6.2a", "LGC6.2b", "LGC6.2c", "LGC14.2a",  "LGC14.2b",  "LGC14.2c")),]
 
 # Set a threshold for "good fits". This is needed to colour plot by ∆AIC
 AIC.dat <- AIC.dat %>% group_by(Site, Inv) %>% mutate("Good_Fit" = min(dAIC) < -10)
@@ -176,5 +171,64 @@ Fig2B <- ggplot(AIC.dat, aes(y = Site, x = dAIC))+
 
 
 # Save panel
-ggsave("path/to/Plots/Fig2B.tiff", 
-       Fig2B, device = "tiff", dpi = 300, width = 53.34, height = 14, units = "cm")
+ggsave("path/to/Plots/Fig2B.tiff", Fig2B, device = "tiff", dpi = 300, width = 53.34, height = 14, units = "cm")
+
+
+
+#### Fig. 2C: variance explained ####
+
+### A: Access deviance scores for each model
+vd <- read.csv(paste0(PATH1, "deviance_across_models_v2.csv")
+
+
+### B: Calcaulte varaince explained at each inversion and hybrid zone
+V.exp <- lapply(CZs, function(s){
+  
+  ## Loop across inversions
+  tmp <- lapply(unique(vd$inversion[vd$site == s]), function(i){
+    # Subset data
+    dat <- vd[vd$site == s & vd$inversion == i,]
+    
+    # Total deviance (null model)
+    devi.null <- dat$deviance[dat$model == "null"]
+  
+    # Variance attributed to cline
+    d.cline <- (devi.null - dat$deviance[dat$model == "cline"]) / devi.null
+    
+    # Variance attributed to cline+envrionment model
+    d.cline_env <- (devi.null - dat$deviance[dat$model == "cline_env"]) / devi.null
+    
+    # Variance from local envrionment
+    d.env <- d.cline_env - d.cline
+    # Rescale to 0 if d.cline > d.cline_env
+    if(d.env < 0) d.env <- 0
+    
+    # Unexplained varaince
+    d.unexp <- 1 - d.cline_env
+    
+    # Write output
+    res <- data.frame("site" = s, "inversion" = i, "partition" = c("cline", "local_environment", "unexplained"),
+                      "variance.explained" = c(d.cline, d.env, d.unexp))
+    
+    return(res)
+  })
+  
+  # Rowbind inversion togheter
+  tmp <- do.call(rbind.data.frame, tmp)
+  
+  return(tmp)
+})
+
+V.exp <- do.call(rbind.data.frame, V.exp)
+
+
+### C: Pie charts
+Fig2C <- ggplot(V.exp)+
+  geom_col(aes(x = "", y = variance.explained, fill = partition), position = position_fill(), col = "grey20")+
+  coord_polar("y", start = 0)+
+  scale_fill_manual(values = c("#998ec3", "#f1a340", "grey99"))+
+  facet_grid(cols = vars(factor(inversion, levels = INVs)), rows = vars(factor(site, levels = CZs[c(7:1)])))+
+  theme_void()+
+  theme(legend.position = "bottom")
+
+ggsave("path/to/Plots/Fig2C.tiff", Fig2C, device = "tiff", dpi = 300, width = 53.34, height = 14, units = "cm")
